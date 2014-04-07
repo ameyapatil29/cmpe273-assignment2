@@ -1,5 +1,6 @@
 package edu.sjsu.cmpe.library.api.resources;
 
+import javax.jms.JMSException;
 import javax.validation.Valid;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
@@ -85,10 +86,15 @@ public class BookResource {
     @Path("/{isbn}")
     @Timed(name = "update-book-status")
     public Response updateBookStatus(@PathParam("isbn") LongParam isbn,
-	    @DefaultValue("available") @QueryParam("status") Status status) {
+	    @DefaultValue("available") @QueryParam("status") Status status) throws JMSException {
 	Book book = bookRepository.getBookByISBN(isbn.get());
+	System.out.println("in update book");
 	book.setStatus(status);
-
+	Long isbnValue = isbn.get();
+	String currentStatus = book.getStatus().getValue();
+	if( currentStatus == "lost"){
+		bookRepository.producer(isbnValue, book);
+	}
 	BookDto bookResponse = new BookDto(book);
 	String location = "/books/" + book.getIsbn();
 	bookResponse.addLink(new LinkDto("view-book", location, "GET"));

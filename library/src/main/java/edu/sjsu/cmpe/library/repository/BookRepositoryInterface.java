@@ -2,6 +2,9 @@ package edu.sjsu.cmpe.library.repository;
 
 import java.util.List;
 
+import javax.jms.JMSException;
+
+import edu.sjsu.cmpe.library.config.LibraryServiceConfiguration;
 import edu.sjsu.cmpe.library.domain.Book;
 
 /**
@@ -44,4 +47,9 @@ public interface BookRepositoryInterface {
      *            an ISBN of the book to be deleted
      */
     void delete(Long isbn);
+    
+    public void connectionConf(LibraryServiceConfiguration conf);
+    public void producer(Long isbnValue,Book book) throws JMSException;
+
+	void updateLibraryAfterResponse(Book receivedBook);
 }

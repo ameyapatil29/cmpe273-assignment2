@@ -9,6 +9,19 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
+import javax.jms.Connection;
+import javax.jms.Destination;
+import javax.jms.JMSException;
+import javax.jms.MessageProducer;
+import javax.jms.Session;
+import javax.jms.TextMessage;
+
+import org.fusesource.stomp.jms.StompJmsConnectionFactory;
+import org.fusesource.stomp.jms.StompJmsDestination;
+
+//import com.yammer.dropwizard.jersey.params.LongParam;
+
+import edu.sjsu.cmpe.library.config.LibraryServiceConfiguration;
 import edu.sjsu.cmpe.library.domain.Book;
 
 public class BookRepository implements BookRepositoryInterface {
@@ -17,6 +30,14 @@ public class BookRepository implements BookRepositoryInterface {
 
     /** Never access this key directly; instead use generateISBNKey() */
     private long isbnKey;
+    
+    String user = "";
+    String password = "";
+    String host = "";
+    int port = 0;
+    String queueName = "";
+    String topicName = "";
+    String libraryName = "";
 
     public BookRepository() {
 	bookInMemoryMap = seedData();
@@ -77,6 +98,16 @@ public class BookRepository implements BookRepositoryInterface {
 
 	return newBook;
     }
+    
+    
+    public Book addUpdatedBook(Book newBook) {
+    	checkNotNull(newBook, "newBook instance must not be null");
+    	Long isbn =newBook.getIsbn();
+    	 newBook.setIsbn(newBook.getIsbn());
+    	bookInMemoryMap.putIfAbsent(isbn, newBook);
+
+    	return newBook;
+        }
 
     /**
      * @see edu.sjsu.cmpe.library.repository.BookRepositoryInterface#getBookByISBN(java.lang.Long)
@@ -105,5 +136,57 @@ public class BookRepository implements BookRepositoryInterface {
     public void delete(Long isbn) {
 	bookInMemoryMap.remove(isbn);
     }
+    
+    public void connectionConf(LibraryServiceConfiguration conf)
+    {
+    	user = conf.getApolloUser();
+        password = conf.getApolloPassword();
+        host = conf.getApolloHost();
+        port = conf.getApolloPort();
+        queueName = conf.getStompQueueName();
+        topicName = conf.getStompTopicName();
+        libraryName = conf.getLibraryName();
+    }
+    
+    public void producer(Long isbnValue,Book book) throws JMSException{
+
+    	//String queue = queueName;
+    	//String libName = libraryName;
+    	
+
+    	StompJmsConnectionFactory factory = new StompJmsConnectionFactory();
+    	factory.setBrokerURI("tcp://" + host + ":" + port);
+
+    	Connection connection = factory.createConnection(user, password);
+    	connection.start();
+    	Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+    	Destination dest = new StompJmsDestination(queueName);
+    	MessageProducer producer = session.createProducer(dest);
+    	//	producer.setDeliveryMode(DeliveryMode.NON_PERSISTENT);
+
+    	System.out.println("Sending messages to " + queueName + "...");
+    	String data = libraryName + ":" + isbnValue;
+    	TextMessage msg = session.createTextMessage(data);
+    	msg.setLongProperty("id", System.currentTimeMillis());
+    	producer.send(msg);
+    }
+
+	@Override
+	public void updateLibraryAfterResponse(Book newBook){
+    	Long isbn = newBook.getIsbn();
+    	List<Book> allBooks = getAllBooks();
+    	for(Book b1 : allBooks){
+    		if(b1.getIsbn() == isbn){
+    			b1.setStatus(Book.Status.available);
+    		}
+    		else
+    		{
+    			Book addedBook = addUpdatedBook(newBook);    			
+    		}
+    	}
+    	
+    }
+
+
 
 }
